@@ -1,96 +1,92 @@
-    //
-    //  ContentView.swift
-    //  weatherApp
-    //
-    //  Created by MacBook on 2025-02-03.
-    //
+//
+//  ContentView.swift
+//  WeatherApp
+//
+//  Created by MacBook on 2025-02-03.
+//
 
-    import SwiftUI
+import SwiftUI
 
-    struct ContentView: View {
-        @State private var locationService = LocationManager()
-        @State private var api = Api()
+struct ContentView: View {
+    @State private var locationService = LocationManager()
+    @State private var api = Api()
+    
+    var body: some View {
         
-        var body: some View {
-            VStack {
-              
-                Text(locationService.address?.locality ?? "Din plats")
-                    .font(.title)
-                    .bold()
-                    .padding()
-                
-               
-                if let temp = api.weather?.current.temperature2M {
-                    Text(String(format: "%.f°C", temp))
-                        .bold()
+        
+        ZStack {
+           
+            LinearGradient(gradient: Gradient(colors: getBackgroundColors()),
+                           startPoint: .topLeading,
+                           endPoint: .bottomTrailing)
+            .edgesIgnoringSafeArea(.all)
+            ScrollView{
+                VStack(spacing: 16) {
+                    
+                  
+                    Text(locationService.address?.locality ?? "Din plats")
                         .font(.largeTitle)
-                        .padding()
-                } else {
-                    Text("Laddar...")
-                        .foregroundColor(.gray)
-                }
-                
-              
-                HStack {
-                    if let maxTemp = api.weather?.daily.temperature2MMax.first {
-                        Text(String(format: "H: %.f°C", maxTemp))
-                            .bold()
-                            .padding()
-                    } else {
-                        Text("H: --°C")
-                            .foregroundColor(.gray)
-                            .bold()
-                            .padding()
-                    }
-                    
-                    if let minTemp = api.weather?.daily.temperature2MMin.first {
-                        Text(String(format: "L: %.f°C", minTemp))
-                            .bold()
-                            .padding()
-                    } else {
-                        Text("L: --°C")
-                            .foregroundColor(.gray)
-                            .bold()
-                            .padding()
-                    }
-                }
-                
-             
-                if let weather = api.weatherlist.first {
-                    Text("Väder för 7 dagar")
-                        .padding()
+                        .bold()
                         .foregroundColor(.white)
+                        .shadow(radius: 4)
+                        .padding(.top, 40)
                     
-                    ForEach(0..<weather.time.count, id: \.self) { index in
-                        let day = daysName(from: weather.time[index])
-                        
-                        HStack {
-                            Text(day)
-                                .foregroundColor(.white)
-                                .font(.headline)
-                            
-                            Text("H: \(String(format: "%.1f°C", weather.temperature2MMax[index]))")
+                 
+                    if let temp = api.weather?.current.temperature2M {
+                        VStack {
+                            Text(String(format: "%.f°C", temp))
+                                .font(.system(size: 80, weight: .bold))
                                 .foregroundColor(.white)
                             
-                            Text("L: \(String(format: "%.1f°C", weather.temperature2MMin[index]))")
-                                .foregroundColor(.white)
-                            
-                            let weatherCode = weather.weatherCode[index]
-                            let description = weatherdescription(code: weatherCode)
-                            let icon = weathericon(code: weatherCode)
-                            
-                            Image(systemName: icon)
-                                .foregroundColor(.white)
-                            
-                            Text(description)
-                                .foregroundColor(.white)
+                            Text(getWeatherEmoji(temp: temp))
+                                .font(.system(size: 50))
                         }
-                        .frame(width: 500, height: 40)
-                        .padding(.vertical, 8)
-                        .background(Color.black)
-                        .cornerRadius(10)
-                        .shadow(radius: 8)
-                        .padding(.horizontal)
+                        .padding()
+                    } else {
+                        Text("Laddar...")
+                            .foregroundColor(.white)
+                            .font(.title2)
+                    }
+                    
+                    
+                    if let maxTemp = api.weather?.daily.temperature2MMax.first,
+                       let minTemp = api.weather?.daily.temperature2MMin.first {
+                        HStack(spacing: 20) {
+                            WeatherInfoCard(title: "H", value: "\(String(format: "%.f°C", maxTemp))", icon: "thermometer.sun.fill")
+                            WeatherInfoCard(title: "L", value: "\(String(format: "%.f°C", minTemp))", icon: "thermometer.snowflake")
+                        }
+                    }
+                    
+                   
+                    if let weather = api.weatherlist.first {
+                        VStack {
+                            Text("7-day forecast")
+                                .font(.title2)
+                                .bold()
+                                .foregroundColor(.white)
+                                .padding(.top, 10)
+                            
+                            ScrollView {
+                                VStack(spacing: 8) {
+                                    ForEach(0..<weather.time.count, id: \.self) { index in
+                                        let day = daysName(from: weather.time[index])
+                                        let weatherCode = weather.weatherCode[index]
+                                        let description = weatherDescription(code: weatherCode)
+                                        let icon = weatherIcon(code: weatherCode)
+                                        
+                                        ForecastRow(day: day,
+                                                    high: weather.temperature2MMax[index],
+                                                    low: weather.temperature2MMin[index],
+                                                    icon: icon,
+                                                    description: description)
+                                    }
+                                }
+                            }
+                            .frame(height: 300)
+                        }
+                        .background(Color.black.opacity(0.3))
+                        .cornerRadius(20)
+                        .padding()
                     }
                 }
             }
@@ -99,9 +95,6 @@
                 
                 Task { @MainActor in
                     await api.fetchWeather()
-                    if let time = api.weather?.current.time, time.count >= 5 {
-                        print("Fetched time: \(time)")
-                    }
                 }
             }
             .refreshable {
@@ -109,52 +102,136 @@
                 
                 Task { @MainActor in
                     await api.fetchWeather()
-                    if let time = api.weather?.current.time, time.count >= 5 {
-                        print("Fetched time: \(time)")
-                    }
                 }
             }
         }
     }
-        func weatherdescription(code: Int) -> String {
-            switch code {
-            case 0:
-                return "Sunny"
-            case 1:
-                return " Cloudy"
-            case 2:
-                return "Rainy"
-            case 3:
-                return "snowy"
-            default:
-                return "unkown"
-            }
+}
+
+func getBackgroundColors() -> [Color] {
+    if let temp = Api().weather?.current.temperature2M {
+        if temp > 25 {
+            return [Color.orange, Color.red]
+        } else if temp > 10 {
+            return [Color.blue, Color.purple]
+        } else {
+            return [Color.gray, Color.blue]
         }
-        func weathericon(code: Int) -> String {
-            switch code {
-            case 0:
-                return "sun.max.fill"
-            case 1:
-                return "cloud.fill"
-            case 2:
-                return "cloud.rain.fill"
-            case 3:
-                return "cloud.snow.fill"
-            default:
-                return "unkown"
-            }
-        }
-        func daysName( from date: String) -> String {
-            let dateForm=DateFormatter()
-            dateForm.dateFormat="yyyy-MM-dd"
-            if let formattedDate=dateForm.date(from: date){
-                let weekday = DateFormatter()
-                weekday.dateFormat="EEEE"
-                return weekday.string(from: formattedDate)
-            }
-            return date
-        }
-   
-    #Preview {
-        ContentView()
     }
+    return [Color.gray, Color.blue]
+}
+
+
+func getWeatherEmoji(temp: Double) -> String {
+    switch temp {
+    case ..<0: return "❄️"
+    case 0..<10: return "🌥"
+    case 10..<25: return "☀️"
+    case 25...: return "🔥"
+    default: return "❓"
+    }
+}
+
+
+func weatherDescription(code: Int) -> String {
+    switch code {
+    case 0: return "Sunny"
+    case 1: return "Cloudy"
+    case 2: return "Rainy"
+    case 3: return "Snowy"
+    default: return "Okänt"
+    }
+}
+
+
+func weatherIcon(code: Int) -> String {
+    switch code {
+    case 0: return "sun.max.fill"
+    case 1: return "cloud.fill"
+    case 2: return "cloud.rain.fill"
+    case 3: return "cloud.snow.fill"
+    default: return "questionmark"
+    }
+}
+
+
+func daysName(from date: String) -> String {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy-MM-dd"
+    
+    if let dateObj = formatter.date(from: date) {
+        formatter.dateFormat = "EEEE"
+        return formatter.string(from: dateObj)
+    }
+    return date
+}
+
+
+struct WeatherInfoCard: View {
+    let title: String
+    let value: String
+    let icon: String
+    
+    var body: some View {
+        VStack {
+            Image(systemName: icon)
+                .font(.title)
+                .foregroundColor(.white)
+            
+            Text(title)
+                .font(.headline)
+                .foregroundColor(.white)
+            
+            Text(value)
+                .font(.title2)
+                .bold()
+                .foregroundColor(.white)
+        }
+        .frame(width: 100, height: 100)
+        .background(Color.black.opacity(0.3))
+        .cornerRadius(15)
+        .shadow(radius: 5)
+    }
+}
+
+
+struct ForecastRow: View {
+    let day: String
+    let high: Double
+    let low: Double
+    let icon: String
+    let description: String
+    
+    var body: some View {
+        HStack {
+            Text(day)
+                .font(.headline)
+                .foregroundColor(.white)
+            
+            Spacer()
+            
+            Image(systemName: icon)
+                .foregroundColor(.white)
+            
+            Text(description)
+                .foregroundColor(.white)
+            
+            Spacer()
+            
+            Text("H: \(String(format: "%.1f°C", high))")
+                .foregroundColor(.white)
+            
+            Text("L: \(String(format: "%.1f°C", low))")
+                .foregroundColor(.white)
+        }
+        .padding()
+        .background(Color.black.opacity(0.4))
+        .cornerRadius(10)
+        .shadow(radius: 5)
+    }
+}
+
+
+#Preview {
+    ContentView()
+}
